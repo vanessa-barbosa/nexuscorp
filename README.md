@@ -96,7 +96,3 @@ nexuscorp/
 └── frontend/
     └── index.html
 ```
-
-
-by: Gustavo Lima TDS 
-gerado com suporte de IA
