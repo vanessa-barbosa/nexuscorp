@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NexusCorp - Teste Visual</title>
+
+  <!-- ================= CSS ================= -->
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f6f7f9;
+      color: #111;
+    }
+    h1 { font-size: 24px; }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 12px 0;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 9px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+      margin: 3px 3px 3px 0;
+    }
+    button.ghost { background: #eee; color: #111; }
+    button.green { background: #0a7a42; }
+    button.red   { background: #b3261e; }
+    button.blue  { background: #0b5ed7; }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 12px;
+      background: #eee;
+    }
+    .item { border-top: 1px solid #eee; padding: 10px 0; }
+    .muted { color: #666; font-size: 13px; }
+    #msg {
+      white-space: pre-wrap;
+      background: #111;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 8px;
+      min-height: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>NexusCorp — Front de teste visual</h1>
+  <p class="muted">
+    Só pra testar. A regra continua na API.
+    Se der erro, ele aparece no log abaixo.
+  </p>
+
+  <!-- ================= 1. LOGIN ================= -->
+  <div class="card">
+    <h3>1. Login</h3>
+
+    <input id="email" value="ana@nexuscorp.com">
+    <input id="senha" type="password" value="123456">
+
+    <div>
+      <button onclick="quick('ana@nexuscorp.com')">Ana (colaborador)</button>
+      <button onclick="quick('bruno@nexuscorp.com')">Bruno (colaborador)</button>
+      <button onclick="quick('patricia@nexuscorp.com')">Patrícia (gestora)</button>
+      <button onclick="quick('carlos@nexuscorp.com')">Carlos (gestor)</button>
+      <button onclick="quick('fernanda@nexuscorp.com')">Fernanda (financeiro)</button>
+    </div>
+
+    <button class="blue" onclick="login()">Entrar</button>
+    <button class="ghost" onclick="logout()">Sair</button>
+
+    <div id="eu" class="muted"></div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ================= 2. CRIAR ================= -->
+    <div class="card">
+      <h3>2. Criar reembolso</h3>
+
+      <select id="categoria">
+        <option value="alimentacao">alimentacao</option>
+        <option value="transporte">transporte</option>
+        <option value="hospedagem">hospedagem</option>
+        <option value="materiais">materiais</option>
+      </select>
+
+      <input id="valor" type="number" step="0.01" value="180">
+      <input id="data" type="date">
+      <input id="just" value="Almoço com cliente">
+      <input id="ref" value="NF-TESTE-1">
+
+      <button class="green" onclick="criar()">Criar (rascunho)</button>
+
+      <p class="muted">
+        Dica: testa valor 0, data futura e comprovante repetido pra ver o erro.
+      </p>
+    </div>
+
+    <!-- ================= 3. LISTAS ================= -->
+    <div class="card">
+      <h3>3. Listas</h3>
+
+      <button onclick="listarMinhas()">Minhas solicitações</button>
+      <button onclick="listarGestor()">Pendentes do gestor</button>
+      <button onclick="listarFinanceiro()">Pendentes do financeiro</button>
+
+      <select id="filtroSit">
+        <option value="">Todas situações</option>
+        <option>rascunho</option>
+        <option>aguardando_gestor</option>
+        <option>aguardando_financeiro</option>
+        <option>aprovada</option>
+        <option>recusada</option>
+        <option>paga</option>
+      </select>
+
+      <button class="ghost" onclick="listarMinhas()">Filtrar minhas</button>
+    </div>
+
+  </div>
+
+  <!-- ================= RESULTADO ================= -->
+  <div class="card">
+    <h3>Resultado</h3>
+    <div id="lista"></div>
+  </div>
+
+  <!-- ================= LOG ================= -->
+  <div class="card">
+    <h3>Log (última resposta da API)</h3>
+    <div id="msg">Aguardando...</div>
+  </div>
+
+  <!-- ================= JS ================= -->
+  <script>
+    const API = 'http://127.0.0.1:8000';
+    let token = localStorage.getItem('nx_token') || '';
+
+    // Data de hoje já preenchida
+    document.getElementById('data').value = new Date().toISOString().slice(0, 10);
+
+    // Mostra resposta no log
+    function log(t) {
+      document.getElementById('msg').textContent =
+        typeof t === 'string' ? t : JSON.stringify(t, null, 2);
+    }
+
+    function headers() {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      };
+    }
+
+    // Atalho: preenche email e já loga
+    async function quick(email) {
+      document.getElementById('email').value = email;
+      await login();
+    }
+
+    // Login
+    async function login() {
+      const r = await fetch(API + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('email').value,
+          senha: document.getElementById('senha').value
+        })
+      });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) return alert('Login falhou: ' + (j.detail || ''));
+
+      token = j.access_token;
+      localStorage.setItem('nx_token', token);
+
+      const me = await (await fetch(API + '/auth/me', { headers: headers() })).json();
+      document.getElementById('eu').textContent =
+        'Logado como: ' + me.nome + ' | ' + me.perfil + ' | dept ' + me.departamento_id;
+
+      listarMinhas();
+    }
+
+    function logout() {
+      token = '';
+      localStorage.removeItem('nx_token');
+      document.getElementById('eu').textContent = 'Deslogado';
+    }
+
+    // Criar reembolso
+    async function criar() {
+      const body = {
+        categoria: document.getElementById('categoria').value,
+        valor: parseFloat(document.getElementById('valor').value),
+        data_despesa: document.getElementById('data').value,
+        justificativa: document.getElementById('just').value,
+        referencia_comprovante: document.getElementById('ref').value
+      };
+      const r = await fetch(API + '/reembolsos', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify(body)
+      });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) return alert('Erro: ' + (j.detail || JSON.stringify(j)));
+      alert('Criado id ' + j.id);
+      listarMinhas();
+    }
+
+    // Cartão de uma solicitação
+    function card(s, acoes) {
+      return `
+        <div class="item">
+          <b>#${s.id}</b>
+          <span class="badge">${s.situacao}</span>
+          <span class="badge">${s.categoria}</span><br>
+          R$ ${s.valor} — ${s.data_despesa} — ${s.justificativa}<br>
+          <span class="muted">
+            Comprovante: ${s.referencia_comprovante} |
+            solicitante_id: ${s.solicitante_id}
+          </span><br>
+          ${acoes || ''}
+        </div>`;
+    }
+
+    // Listar minhas
+    async function listarMinhas() {
+      const sit = document.getElementById('filtroSit').value;
+      const q = sit ? ('?situacao=' + sit) : '';
+      const r = await fetch(API + '/reembolsos' + q, { headers: headers() });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) {
+        return document.getElementById('lista').innerHTML = 'Erro: ' + JSON.stringify(j);
+      }
+      document.getElementById('lista').innerHTML =
+        '<h4>Minhas</h4>' + (j.length ? j.map(s => card(s, `
+          <button onclick="enviar(${s.id})">Enviar</button>
+          <button onclick="editar(${s.id})">Editar valor p/ 1800 (teste RN07)</button>
+          <button class="red" onclick="excluir(${s.id})">Excluir</button>
+          <button class="ghost" onclick="verHist(${s.id}, '/reembolsos/')">Histórico</button>
+        `)).join('') : 'Nenhuma');
+    }
+
+    // Listar pendentes do gestor
+    async function listarGestor() {
+      const r = await fetch(API + '/aprovacoes/gestor', { headers: headers() });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) {
+        return document.getElementById('lista').innerHTML = 'Erro: ' + JSON.stringify(j);
+      }
+      document.getElementById('lista').innerHTML =
+        '<h4>Pendentes do gestor</h4>' + (j.length ? j.map(s => card(s, `
+          <button class="green" onclick="decidir('gestor', ${s.id}, 'aprovar')">Aprovar</button>
+          <button class="red" onclick="decidir('gestor', ${s.id}, 'recusar')">Recusar</button>
+          <button class="ghost" onclick="verHist(${s.id}, '/aprovacoes/')">Histórico</button>
+        `)).join('') : 'Nenhuma pendente');
+    }
+
+    // Listar pendentes do financeiro
+    async function listarFinanceiro() {
+      const r = await fetch(API + '/aprovacoes/financeiro', { headers: headers() });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) {
+        return document.getElementById('lista').innerHTML = 'Erro: ' + JSON.stringify(j);
+      }
+      document.getElementById('lista').innerHTML =
+        '<h4>Financeiro</h4>' + (j.length ? j.map(s => card(s, `
+          <button class="green" onclick="decidir('financeiro', ${s.id}, 'aprovar')">Aprovar</button>
+          <button class="red" onclick="decidir('financeiro', ${s.id}, 'recusar')">Recusar</button>
+          <button class="blue" onclick="decidir('financeiro', ${s.id}, 'pagar')">Marcar como paga</button>
+        `)).join('') : 'Nenhuma');
+    }
+
+    // Enviar rascunho
+    async function enviar(id) {
+      const r = await fetch(API + '/reembolsos/' + id + '/enviar', {
+        method: 'POST', headers: headers()
+      });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) alert(j.detail);
+      listarMinhas();
+    }
+
+    // Excluir
+    async function excluir(id) {
+      if (!confirm('Excluir #' + id + '?')) return;
+      const r = await fetch(API + '/reembolsos/' + id, {
+        method: 'DELETE', headers: headers()
+      });
+      log('DELETE ' + r.status);
+      listarMinhas();
+    }
+
+    // Teste RN07: tenta trocar valor de enviado para 1800
+    async function editar(id) {
+      const r = await fetch(API + '/reembolsos/' + id, {
+        method: 'PATCH',
+        headers: headers(),
+        body: JSON.stringify({ valor: 1800 })
+      });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) alert('Travado como esperado: ' + j.detail);
+      listarMinhas();
+    }
+
+    // Aprovar / Recusar / Pagar
+    async function decidir(tipo, id, acao) {
+      let obs = '';
+      if (acao === 'recusar') {
+        obs = prompt('Justificativa da recusa (obrigatória):');
+        if (!obs) return alert('Recusa precisa de justificativa');
+      }
+      if (acao === 'aprovar') obs = prompt('Observação (opcional):') || '';
+
+      const r = await fetch(API + `/aprovacoes/${tipo}/${id}/${acao}`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ observacao: obs })
+      });
+      const j = await r.json();
+      log(j);
+      if (!r.ok) return alert('Erro: ' + j.detail);
+      tipo === 'gestor' ? listarGestor() : listarFinanceiro();
+    }
+
+    // Ver histórico
+    async function verHist(id, prefix) {
+      const r = await fetch(API + prefix + id + '/historico', { headers: headers() });
+      const j = await r.json();
+      log(j);
+      alert(JSON.stringify(j, null, 2));
+    }
+
+    // Se já tinha token salvo, mostra quem está logado
+    if (token) {
+      fetch(API + '/auth/me', { headers: headers() })
+        .then(r => r.json())
+        .then(me => {
+          if (me.nome) {
+            document.getElementById('eu').textContent =
+              'Logado como: ' + me.nome + ' | ' + me.perfil;
+          }
+        });
+    }
+  </script>
+
+</body>
+</html>
